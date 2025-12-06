@@ -1,19 +1,35 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import CategorySection from "@/components/CategorySection"
 import { useFilters } from "@/components/FiltersContext"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Heart, Users, Handshake, BookOpen } from "lucide-react"
+import { Heart, Users, Handshake, BookOpen, X } from "lucide-react"
 import ProductCard from "@/components/ProductCard"
 
 export default function Home() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [products, setProducts] = useState<any[]>([])
   const [hasError, setHasError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [showConfirmationSuccess, setShowConfirmationSuccess] = useState(false)
   const { filters, setFilters } = useFilters()
+
+  // Check for email confirmation success
+  useEffect(() => {
+    const confirmed = searchParams.get("confirmed")
+    if (confirmed === "true") {
+      setShowConfirmationSuccess(true)
+      // Clear the URL parameter
+      router.replace("/", { scroll: false })
+      // Auto-hide after 5 seconds
+      setTimeout(() => setShowConfirmationSuccess(false), 5000)
+    }
+  }, [searchParams, router])
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -76,6 +92,40 @@ export default function Home() {
 
   return (
     <>
+      {/* Email Confirmation Success Banner */}
+      {showConfirmationSuccess && (
+        <div className="bg-green-50 border-b border-green-200 sticky top-0 z-50">
+          <div className="max-w-6xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="h-3 w-3 text-white"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+                <p className="text-green-800 font-medium">
+                  Email confirmed successfully! Welcome to NGO STORE.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfirmationSuccess(false)}
+                className="text-green-600 hover:text-green-800 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <section className="w-full bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 py-24">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col items-center justify-center text-center space-y-6">

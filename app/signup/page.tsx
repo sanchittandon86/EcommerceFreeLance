@@ -30,9 +30,15 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
+      // Get the current origin for the redirect URL
+      const redirectUrl = `${window.location.origin}/auth/callback?next=/`;
+      
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
       });
 
       if (signUpError) {
@@ -43,10 +49,8 @@ export default function SignupPage() {
 
       if (data.user) {
         setSuccess(true);
-        // Redirect to login after a short delay
-        setTimeout(() => {
-          router.push("/login");
-        }, 2000);
+        // Show success message and inform user to check email
+        // Don't redirect immediately - let them see the message
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -71,8 +75,12 @@ export default function SignupPage() {
               </div>
             )}
             {success && (
-              <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md">
-                Account created successfully! Redirecting to login...
+              <div className="p-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md space-y-2">
+                <p className="font-semibold">Account created successfully!</p>
+                <p>
+                  Please check your email and click the confirmation link to verify your account.
+                  You'll be automatically logged in after confirmation.
+                </p>
               </div>
             )}
             <div className="space-y-2">

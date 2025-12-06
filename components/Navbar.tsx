@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -57,15 +57,38 @@ export default function Navbar() {
         } else if (profileData) {
           setProfile(profileData as UserProfile)
         } else {
-          // Profile doesn't exist, create it with default role
+          // Profile doesn't exist, try to create it with default role
+          // Use upsert to handle race conditions where profile might be created by trigger
           const { data: newProfile, error: createError } = await supabase
             .from("profiles")
-            .insert([{ id: session.user.id, email: session.user.email, role: "user" }])
+            .upsert(
+              { 
+                id: session.user.id, 
+                email: session.user.email || null, 
+                role: "user" 
+              },
+              { onConflict: "id" }
+            )
             .select("role")
             .single()
           
           if (createError) {
-            console.error("Error creating profile:", createError)
+            // Check if it's a duplicate key error (profile was created by trigger)
+            if (createError.code === "23505" || createError.message?.includes("duplicate")) {
+              // Profile was created by trigger, fetch it again
+              const { data: retryProfile } = await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", session.user.id)
+                .maybeSingle()
+              
+              if (retryProfile) {
+                setProfile(retryProfile as UserProfile)
+              }
+            } else {
+              // Only log non-duplicate errors
+              console.error("Error creating profile:", createError.code, createError.message)
+            }
           } else if (newProfile) {
             setProfile(newProfile as UserProfile)
           }
@@ -80,67 +103,165 @@ export default function Navbar() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        // Fetch user profile to check role
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle()
-        
-        if (profileError) {
-          console.error("Error fetching profile:", profileError)
-        } else if (profileData) {
-          setProfile(profileData as UserProfile)
-        } else {
-          // Profile doesn't exist, create it with default role
-          const { data: newProfile, error: createError } = await supabase
-            .from("profiles")
-            .insert([{ id: session.user.id, email: session.user.email, role: "user" }])
-            .select("role")
-            .single()
-          
-          if (createError) {
-            console.error("Error creating profile:", createError)
-          } else if (newProfile) {
-            setProfile(newProfile as UserProfile)
-          }
-        }
-      } else {
-        setProfile(null)
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip all processing if we're logging out
+      if (logoutRef.current) {
+        return
       }
       
-      router.refresh()
+      // Handle SIGNED_OUT event explicitly
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null)
+        setProfile(null)
+        // Don't refresh during logout to avoid race conditions
+        if (event !== 'SIGNED_OUT' && !logoutRef.current) {
+          router.refresh()
+        }
+        return
+      }
+      
+      // Only process if we have a user session and not logging out
+      if (session?.user && !logoutRef.current) {
+        setUser(session.user)
+        
+        // Fetch user profile to check role (with timeout to prevent hanging)
+        try {
+          const profilePromise = supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", session.user.id)
+            .maybeSingle()
+          
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+          
+          const result = await Promise.race([profilePromise, timeoutPromise])
+          
+          if (result && typeof result === 'object' && 'data' in result) {
+            const { data: profileData, error: profileError } = result as { data: any, error: any }
+            
+            if (profileError) {
+              console.error("Error fetching profile:", profileError)
+            } else if (profileData) {
+              setProfile(profileData as UserProfile)
+            } else if (!logoutRef.current) {
+              // Profile doesn't exist, try to create it with default role
+              // Use upsert to handle race conditions where profile might be created by trigger
+              const { data: newProfile, error: createError } = await supabase
+                .from("profiles")
+                .upsert(
+                  { 
+                    id: session.user.id, 
+                    email: session.user.email || null, 
+                    role: "user" 
+                  },
+                  { onConflict: "id" }
+                )
+                .select("role")
+                .single()
+              
+              if (createError) {
+                // Check if it's a duplicate key error (profile was created by trigger)
+                if (createError.code === "23505" || createError.message?.includes("duplicate")) {
+                  // Profile was created by trigger, fetch it again
+                  const { data: retryProfile } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("id", session.user.id)
+                    .maybeSingle()
+                  
+                  if (retryProfile && !logoutRef.current) {
+                    setProfile(retryProfile as UserProfile)
+                  }
+                } else {
+                  // Only log non-duplicate errors
+                  console.error("Error creating profile:", createError.code, createError.message)
+                }
+              } else if (newProfile && !logoutRef.current) {
+                setProfile(newProfile as UserProfile)
+              }
+            }
+          }
+        } catch (err) {
+          // Silently handle errors during logout
+          if (!logoutRef.current) {
+            console.error("Error in auth state change:", err)
+          }
+        }
+      }
+      
+      // Only refresh if not logging out
+      if (!logoutRef.current) {
+        router.refresh()
+      }
     })
 
     return () => subscription.unsubscribe()
   }, [router])
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const logoutRef = useRef(false)
 
   async function handleLogout() {
+    logoutRef.current = true
     setIsLoggingOut(true)
+    setDropdownOpen(false) // Close dropdown immediately
+    
+    // Clear user state immediately to prevent any UI updates
+    setUser(null)
+    setProfile(null)
+    
+    // Set a timeout fallback to ensure redirect happens even if signOut hangs
+    const redirectTimeout = setTimeout(() => {
+      console.warn("Logout timeout - forcing redirect")
+      if (typeof window !== "undefined") {
+        window.location.replace("/")
+      }
+    }, 2000) // 2 second fallback
+    
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut()
-      
-      // Clear local storage (cart and wishlist)
+      // Clear local storage first (cart and wishlist)
       if (typeof window !== "undefined") {
         localStorage.removeItem("cart")
         localStorage.removeItem("wishlist")
       }
       
-      // Wait a moment for sign out to complete
+      // Sign out from Supabase with timeout
+      const signOutPromise = supabase.auth.signOut({
+        scope: 'global' // Sign out from all sessions
+      })
+      
+      // Race between signOut and timeout
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1000))
+      
+      const result = await Promise.race([signOutPromise, timeoutPromise])
+      
+      if (result && typeof result === 'object' && 'error' in result) {
+        const { error: signOutError } = result as { error: any }
+        if (signOutError) {
+          console.error("Logout error:", signOutError)
+        }
+      }
+      
+      // Clear the timeout since we're redirecting now
+      clearTimeout(redirectTimeout)
+      
+      // Small delay to ensure state is cleared
       await new Promise((resolve) => setTimeout(resolve, 100))
       
-      // Redirect to homepage using hard redirect for immediate navigation
-      window.location.href = "/"
+      // Force hard redirect to homepage - this ensures clean state
+      // Using replace to prevent back button issues
+      if (typeof window !== "undefined") {
+        window.location.replace("/")
+      }
     } catch (error) {
       console.error("Logout error:", error)
-      setIsLoggingOut(false)
+      // Clear the timeout
+      clearTimeout(redirectTimeout)
+      // Always redirect even on error to prevent stuck state
+      if (typeof window !== "undefined") {
+        window.location.replace("/")
+      }
     }
   }
 
@@ -204,12 +325,15 @@ export default function Navbar() {
               <Link href="/login">Login</Link>
             </Button>
           ) : (
-            <DropdownMenu>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 focus:outline-none">
+                <button 
+                  className="flex items-center gap-2 focus:outline-none"
+                  disabled={isLoggingOut}
+                >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-amber-700 text-white">
-                      {getUserInitials(user.email)}
+                      {isLoggingOut ? "..." : getUserInitials(user.email)}
                     </AvatarFallback>
                   </Avatar>
                 </button>
@@ -254,12 +378,21 @@ export default function Navbar() {
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={handleLogout}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleLogout()
+                  }}
                   disabled={isLoggingOut}
-                  className="cursor-pointer text-red-600 focus:text-red-600 disabled:opacity-50"
+                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  {isLoggingOut ? "Logging out..." : "Logout"}
+                  {isLoggingOut ? (
+                    <span className="flex items-center">
+                      <span className="animate-pulse">Logging out...</span>
+                    </span>
+                  ) : (
+                    "Logout"
+                  )}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -21,7 +21,24 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check for confirmation success or errors from callback
+  useEffect(() => {
+    const confirmed = searchParams.get("confirmed");
+    const errorParam = searchParams.get("error");
+    
+    if (confirmed === "true") {
+      setSuccess("Email confirmed successfully! You can now log in.");
+      // Clear the URL parameter
+      router.replace("/login", { scroll: false });
+    } else if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+      // Clear the URL parameter
+      router.replace("/login", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -107,6 +124,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {success && (
+              <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md">
+                {success}
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
                 {error}
