@@ -240,6 +240,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize cart based on auth state
   useEffect(() => {
+    localStorage.setItem("cart", JSON.stringify(cart));
+  }, [cart]);
+
+  function addToCart(item: CartItem) {
     let mounted = true;
 
     async function initializeCart() {
