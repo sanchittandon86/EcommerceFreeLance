@@ -5,6 +5,7 @@ import { useCart } from "@/components/CartContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import RazorpayButton from "@/components/payment/RazorpayButton";
 
 export default function CartPage() {
   const { cart, removeFromCart, addToCart } = useCart();
@@ -39,7 +40,6 @@ export default function CartPage() {
                 <h2 className="text-xl font-semibold">{item.name}</h2>
                 <p className="text-gray-600 mt-1">₹{item.price}</p>
 
-                {/* Quantity Selector */}
                 <div className="flex items-center gap-3 mt-3">
                   <Button
                     variant="outline"
@@ -97,10 +97,7 @@ export default function CartPage() {
         <span>Subtotal</span>
         <span>₹{subtotal}</span>
       </div>
-
-      <Button className="w-full mt-6 text-lg py-6">
-        Proceed to Checkout
-      </Button>
+      <RazorpayButton subtotal={subtotal} userId='1'></RazorpayButton>
     </div>
   );
 }
