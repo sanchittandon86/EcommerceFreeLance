@@ -188,6 +188,141 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  }, []);
+
+  // Load cart from Supabase for authenticated users
+  const loadSupabaseCart = useCallback(async (userId: string) => {
+    try {
+      const { data: cartData, error } = await supabase
+        .from("cart")
+        .select("product_id, quantity")
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error("Error loading cart from Supabase:", error);
+        return [];
+      }
+
+      if (!cartData || cartData.length === 0) {
+        return [];
+      }
+
+      // Get product IDs
+      const productIds = cartData.map((item) => item.product_id);
+
+      // Fetch product details
+      const products = await fetchProductDetails(productIds);
+
+      // Merge with quantities
+      const cartItems: CartItem[] = products
+        .map((product) => {
+          const cartItem = cartData.find((c) => c.product_id === product.id);
+          return cartItem
+            ? { ...product, qty: cartItem.quantity }
+            : null;
+        })
+        .filter((item): item is CartItem => item !== null);
+
+      return cartItems;
+    } catch (err) {
+      console.error("Error in loadSupabaseCart:", err);
+      return [];
+    }
+  }, [fetchProductDetails]);
+
+  // Load cart from localStorage for guests
+  const loadLocalCart = useCallback(() => {
+    try {
+      const stored = localStorage.getItem("cart");
+      if (stored) {
+        return JSON.parse(stored) as CartItem[];
+      }
+    } catch (err) {
+      console.error("Error loading cart from localStorage:", err);
+    }
+    return [];
+  }, []);
+
+  // Save cart to Supabase
+  const saveToSupabase = useCallback(async (items: CartItem[], userId: string) => {
+    if (!userId) return;
+
+    try {
+      if (items.length === 0) {
+        // If cart is empty, just delete all items
+        const { error } = await supabase.from("cart").delete().eq("user_id", userId);
+        if (error) {
+          console.error("Error clearing cart:", error);
+        }
+        return;
+      }
+
+      // Get current cart items from Supabase to find items to delete
+      const { data: existingCart } = await supabase
+        .from("cart")
+        .select("product_id")
+        .eq("user_id", userId);
+
+      const existingProductIds = new Set(existingCart?.map((item) => item.product_id) || []);
+
+      // Prepare cart rows for upsert
+      const cartRows = items.map((item) => ({
+        user_id: userId,
+        product_id: item.id,
+        quantity: item.qty,
+      }));
+
+      // Get product IDs in new cart
+      const newProductIds = new Set(items.map((item) => item.id));
+
+      // Delete items that are no longer in cart
+      const itemsToDelete = Array.from(existingProductIds).filter(
+        (id) => !newProductIds.has(id)
+      );
+
+      if (itemsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("cart")
+          .delete()
+          .eq("user_id", userId)
+          .in("product_id", itemsToDelete);
+        
+        if (deleteError) {
+          console.error("Error deleting removed cart items:", deleteError);
+        }
+      }
+
+      // Upsert all items (insert or update based on user_id + product_id)
+      // Note: Requires unique constraint on (user_id, product_id) in database
+      const { error: upsertError } = await supabase
+        .from("cart")
+        .upsert(cartRows, {
+          onConflict: "user_id,product_id",
+        });
+
+      if (upsertError) {
+        console.error("Error upserting cart to Supabase:", upsertError);
+        // Fallback to delete + insert if upsert fails (e.g., no unique constraint)
+        await supabase.from("cart").delete().eq("user_id", userId);
+        const { error: insertError } = await supabase.from("cart").insert(cartRows);
+        if (insertError) {
+          console.error("Error inserting cart (fallback):", insertError);
+        }
+      }
+    } catch (err) {
+      console.error("Error in saveToSupabase:", err);
+    }
+  }, []);
+
+  // Save cart to localStorage
+  const saveToLocal = useCallback((items: CartItem[]) => {
+    try {
+      localStorage.setItem("cart", JSON.stringify(items));
+    } catch (err) {
+      console.error("Error saving cart to localStorage:", err);
+    }
+  }, []);
+
   // Merge guest cart with user cart
   const mergeGuestCart = useCallback(async (userId: string) => {
     if (isMerging) return; // Prevent multiple merges
@@ -240,8 +375,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize cart based on auth state
   useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+    let mounted = true;
+
+    async function initializeCart() {
+      setIsLoading(true);
+
+      // Get initial session
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user ?? null;
+      
+      if (!mounted) return;
+      setUser(currentUser);
+      userRef.current = currentUser;
+
+      if (currentUser) {
+        // Authenticated: load from Supabase
+        const supabaseCart = await loadSupabaseCart(currentUser.id);
+        if (!mounted) return;
+        setCart(supabaseCart);
+        setIsSynced(true);
 
   // Initialize cart and listen for auth changes
   useEffect(() => {
@@ -380,6 +532,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return [...prev, { ...item, qty: item.qty || 1 }];
     });
   }, [cart, isSynced, user]);
+  }, []);
 
   // Remove from cart
   const removeFromCart = useCallback(async (id: string) => {
