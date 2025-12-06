@@ -1,16 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import CategorySection from "@/components/CategorySection"
+import { useFilters } from "@/components/FiltersContext"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Heart, Users, Handshake, BookOpen } from "lucide-react"
+import ProductCard from "@/components/ProductCard"
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([])
   const [hasError, setHasError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const { filters, setFilters } = useFilters()
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -36,6 +39,33 @@ export default function Home() {
   }, [])
 
   const categories = ["Bags", "BedSheet", "PillowCover", "Blankets"]
+
+  // Filter and sort products
+  const filteredProducts = useMemo(() => {
+    let filtered = [...products]
+
+    // Filter by category
+    if (filters.category) {
+      filtered = filtered.filter((p: any) => p.category === filters.category)
+    }
+
+    // Filter by price range
+    filtered = filtered.filter(
+      (p: any) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]
+    )
+
+    // Sort
+    if (filters.sort === "low") {
+      filtered.sort((a: any, b: any) => a.price - b.price)
+    } else if (filters.sort === "high") {
+      filtered.sort((a: any, b: any) => b.price - a.price)
+    }
+
+    return filtered
+  }, [products, filters])
+
+  // Check if any filters are active
+  const hasActiveFilters = filters.category !== "" || filters.priceRange[0] > 0 || filters.priceRange[1] < 3000 || filters.sort !== ""
 
   const scrollToProducts = () => {
     const productsSection = document.getElementById("products-section")
@@ -135,7 +165,43 @@ export default function Home() {
                 <CategorySection title={cat} products={[]} isLoading={true} />
               </div>
             ))
+          ) : hasActiveFilters ? (
+            // Show filtered products in a single grid
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold text-slate-900">
+                  Filtered Products
+                </h2>
+                <p className="text-slate-600">
+                  {filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"} found
+                </p>
+              </div>
+              {filteredProducts.length > 0 ? (
+                <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 auto-rows-fr">
+                  {filteredProducts.map((p: any) => (
+                    <ProductCard
+                      key={p.id}
+                      id={p.id}
+                      name={p.name}
+                      price={p.price}
+                      image_url={p.image_url}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <p className="text-xl text-slate-600 mb-4">No products match your filters</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setFilters({ category: "", priceRange: [0, 3000], sort: "" })}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : (
+            // Show products by category when no filters are active
             categories.map((cat) => (
               <div key={cat} className="mb-16 pb-16 border-b border-slate-200 last:border-0">
                 <CategorySection title={cat} products={products.filter((p: any) => p.category === cat) || []} />

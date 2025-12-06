@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { CartProvider } from "@/components/CartContext";
+import { FiltersProvider } from "@/components/FiltersContext";
+import { WishlistProvider } from "@/components/WishlistContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,8 +35,12 @@ export default function RootLayout({
           strategy="lazyOnload"
         />
         <CartProvider>
-          <Navbar />
-          {children}
+          <WishlistProvider>
+          <FiltersProvider>
+              <Navbar />
+              {children}
+            </FiltersProvider>
+          </WishlistProvider>
         </CartProvider>
       </body>
     </html>
