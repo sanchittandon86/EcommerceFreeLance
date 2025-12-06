@@ -145,7 +145,6 @@ export default function CartPage() {
             </div>
 
             <Separator className="bg-slate-200" />
-
             {/* Checkout Button */}
             {user ? (
               <RazorpayButton subtotal={subtotal} userId={user.id} />

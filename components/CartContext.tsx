@@ -34,7 +34,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [cart]);
 
   function addToCart(item: CartItem) {
-    console.log("ADD TO CART CALLED:", item);
     setCart((prev) => {
       const existing = prev.find((p) => p.id === item.id);
       if (existing) {

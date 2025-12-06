@@ -3,6 +3,7 @@
 import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 import { razorpayConfig } from "@/config/config.razorpay"
+import { sendEmail } from "@/utils/sendMail"
 
 declare global {
   interface Window {
@@ -61,7 +62,6 @@ export default function RazorpayButton({ subtotal, userId }: { subtotal: number,
         razorpay_payment_id: string;
         razorpay_signature: string;
       }) {
-
         const verifyRes = await fetch("/api/razorpay/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,8 +72,19 @@ export default function RazorpayButton({ subtotal, userId }: { subtotal: number,
           }),
         });
 
-        const verifyData = await verifyRes.json();
-
+        const verifyData = await verifyRes.json(); 
+        const result = verifyData.success ? 'Successful' : 'Failed'
+        const data = {
+          to : 'anmolpatel562@gmail.com',
+          message: `Your payment has ${result} for the order ${orderData.orderRowId} with amount ${subtotal}`,
+          subject: `Payment ${result}`
+        }
+        
+        if (verifyData.success) {
+           sendEmail(data);
+           return;
+        } 
+        sendEmail(data);
       }
     };
 

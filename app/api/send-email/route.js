@@ -3,7 +3,7 @@ import { emailConfig } from "../config/config.mail"
 
 export async function POST(req) {
     try {
-        const { email, message, subject } = await req.json();
+        const { to, message, subject } = await req.json();
         const transporter = await nodemailer.createTransport({
             service: emailConfig.mailService,
             auth: {
@@ -14,7 +14,7 @@ export async function POST(req) {
 
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
-            to: email,
+            to: to,
             subject: subject,
             text: message
         })
