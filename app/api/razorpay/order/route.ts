@@ -1,6 +1,6 @@
 import Razorpay from "razorpay";
 import { NextRequest, NextResponse } from "next/server";
-import {supabase} from "@/lib/supabaseClient";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { razorpayConfig } from "@/config/config.razorpay";
 
 // FLOW:-
@@ -20,11 +20,22 @@ export async function POST(req : NextRequest) {
     try {
         const { userId, subtotal } = await req.json();
         const totalAmountInPaise = subtotal * 100;
-            const { data:orderRow, error} = await supabase
+        
+        const supabase = await supabaseServer();
+        
+        const { data:orderRow, error} = await supabase
             .from("orders")
             .insert([{user_id: userId, status: razorpayConfig.pendingPayment, amount:subtotal}])
             .select()
-            .single();   
+            .single();
+        
+        if (error || !orderRow) {
+            console.error("Error creating order:", error);
+            return NextResponse.json({
+                success: false,
+                message: 'Failed to create order'
+            }, { status: 500 });
+        }
     
         const razorayOrder = await razorpay.orders.create({
             amount: totalAmountInPaise,
@@ -32,10 +43,14 @@ export async function POST(req : NextRequest) {
             receipt: orderRow.id.toString()
         });
     
-        await supabase
+        const { error: updateError } = await supabase
             .from("orders")
             .update({ razorpay_order_id:razorayOrder.id })
             .eq( "id",orderRow.id );
+        
+        if (updateError) {
+            console.error("Error updating order with Razorpay ID:", updateError);
+        }
     
     
         return NextResponse.json({

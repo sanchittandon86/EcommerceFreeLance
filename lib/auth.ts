@@ -45,10 +45,27 @@ export async function getUserProfile() {
     .from("profiles")
     .select("id, email, role, created_at, updated_at")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (error || !profile) {
+  if (error) {
+    console.error("Error fetching profile:", error);
     return null;
+  }
+
+  // If profile doesn't exist, create it
+  if (!profile) {
+    const { data: newProfile, error: createError } = await supabase
+      .from("profiles")
+      .insert([{ id: user.id, email: user.email, role: "user" }])
+      .select("id, email, role, created_at, updated_at")
+      .single();
+
+    if (createError || !newProfile) {
+      console.error("Error creating profile:", createError);
+      return null;
+    }
+
+    return newProfile as UserProfile;
   }
 
   return profile as UserProfile;
@@ -64,16 +81,27 @@ export async function requireAdmin() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile || profile.role !== "admin") {
+  // If profile doesn't exist, create it with default 'user' role
+  let userProfile = profile;
+  if (!profile && !error) {
+    const { data: newProfile } = await supabase
+      .from("profiles")
+      .insert([{ id: user.id, email: user.email, role: "user" }])
+      .select("role")
+      .single();
+    userProfile = newProfile;
+  }
+
+  if (!userProfile || userProfile.role !== "admin") {
     redirect("/not-authorized");
   }
 
-  return { user, profile };
+  return { user, profile: userProfile };
 }
 

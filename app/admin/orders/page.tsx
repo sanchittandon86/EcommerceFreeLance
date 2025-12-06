@@ -24,9 +24,9 @@ export default async function AdminOrdersPage() {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (profile?.role !== "admin") redirect("/not-authorized");
+  if (!profile || profile.role !== "admin") redirect("/not-authorized");
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-16">

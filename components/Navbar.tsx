@@ -46,14 +46,29 @@ export default function Navbar() {
       
       if (session?.user) {
         // Fetch user profile to check role
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", session.user.id)
-          .single()
+          .maybeSingle()
         
-        if (profileData) {
+        if (profileError) {
+          console.error("Error fetching profile:", profileError)
+        } else if (profileData) {
           setProfile(profileData as UserProfile)
+        } else {
+          // Profile doesn't exist, create it with default role
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert([{ id: session.user.id, email: session.user.email, role: "user" }])
+            .select("role")
+            .single()
+          
+          if (createError) {
+            console.error("Error creating profile:", createError)
+          } else if (newProfile) {
+            setProfile(newProfile as UserProfile)
+          }
         }
       }
       
@@ -70,14 +85,29 @@ export default function Navbar() {
       
       if (session?.user) {
         // Fetch user profile to check role
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", session.user.id)
-          .single()
+          .maybeSingle()
         
-        if (profileData) {
+        if (profileError) {
+          console.error("Error fetching profile:", profileError)
+        } else if (profileData) {
           setProfile(profileData as UserProfile)
+        } else {
+          // Profile doesn't exist, create it with default role
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert([{ id: session.user.id, email: session.user.email, role: "user" }])
+            .select("role")
+            .single()
+          
+          if (createError) {
+            console.error("Error creating profile:", createError)
+          } else if (newProfile) {
+            setProfile(newProfile as UserProfile)
+          }
         }
       } else {
         setProfile(null)
