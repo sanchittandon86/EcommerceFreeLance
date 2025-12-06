@@ -14,7 +14,7 @@ export default function CategorySection({
     <div className="mb-12">
       <h2 className="text-3xl font-bold mb-6">{title}</h2>
 
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 auto-rows-fr">
         {isLoading ? (
           // Show 4 skeleton cards while loading
           Array.from({ length: 4 }).map((_, index) => (
