@@ -11,24 +11,57 @@ export function LogoutButton() {
 
   async function handleLogout() {
     setIsLoggingOut(true);
+    
+    // Set a timeout fallback to ensure redirect happens even if signOut hangs
+    const redirectTimeout = setTimeout(() => {
+      console.warn("Logout timeout - forcing redirect");
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      }
+    }, 2000); // 2 second fallback
+    
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-      
-      // Clear local storage (cart and wishlist)
+      // Clear local storage first (cart and wishlist)
       if (typeof window !== "undefined") {
         localStorage.removeItem("cart");
         localStorage.removeItem("wishlist");
       }
       
-      // Wait a moment for sign out to complete
+      // Sign out from Supabase with timeout
+      const signOutPromise = supabase.auth.signOut({
+        scope: 'global' // Sign out from all sessions
+      });
+      
+      // Race between signOut and timeout
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      const result = await Promise.race([signOutPromise, timeoutPromise]);
+      
+      if (result && typeof result === 'object' && 'error' in result) {
+        const { error: signOutError } = result as { error: any };
+        if (signOutError) {
+          console.error("Logout error:", signOutError);
+        }
+      }
+      
+      // Clear the timeout since we're redirecting now
+      clearTimeout(redirectTimeout);
+      
+      // Small delay to ensure state is cleared
       await new Promise((resolve) => setTimeout(resolve, 100));
       
-      // Redirect to homepage using hard redirect for immediate navigation
-      window.location.href = "/";
+      // Force hard redirect to homepage - using replace to prevent back button issues
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      }
     } catch (error) {
       console.error("Logout error:", error);
-      setIsLoggingOut(false);
+      // Clear the timeout
+      clearTimeout(redirectTimeout);
+      // Always redirect even on error to prevent stuck state
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      }
     }
   }
 

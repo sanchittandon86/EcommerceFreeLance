@@ -54,9 +54,15 @@ export async function getUserProfile() {
 
   // If profile doesn't exist, create it
   if (!profile) {
+    const profileData: any = { id: user.id, role: "user" };
+    // Only include email if available (column might not exist in some setups)
+    if (user.email) {
+      profileData.email = user.email;
+    }
+    
     const { data: newProfile, error: createError } = await supabase
       .from("profiles")
-      .insert([{ id: user.id, email: user.email, role: "user" }])
+      .insert([profileData])
       .select("id, email, role, created_at, updated_at")
       .single();
 
@@ -90,9 +96,15 @@ export async function requireAdmin() {
   // If profile doesn't exist, create it with default 'user' role
   let userProfile = profile;
   if (!profile && !error) {
+    const profileData: any = { id: user.id, role: "user" };
+    // Only include email if available (column might not exist in some setups)
+    if (user.email) {
+      profileData.email = user.email;
+    }
+    
     const { data: newProfile } = await supabase
       .from("profiles")
-      .insert([{ id: user.id, email: user.email, role: "user" }])
+      .insert([profileData])
       .select("role")
       .single();
     userProfile = newProfile;
