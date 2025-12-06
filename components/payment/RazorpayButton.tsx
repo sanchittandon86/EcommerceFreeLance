@@ -1,0 +1,93 @@
+"use client";
+
+import { Button } from "../ui/button";
+import { useEffect, useState } from "react";
+import { razorpayConfig } from "@/config/config.razorpay"
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+export default function RazorpayButton({ subtotal, userId }: { subtotal: number, userId: string }) {
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+
+  useEffect(() => {
+    if (window.Razorpay) {
+      setRazorpayLoaded(true);
+      return;
+    }
+
+    const checkRazorpay = setInterval(() => {
+      if (window.Razorpay) {
+        setRazorpayLoaded(true);
+        clearInterval(checkRazorpay);
+      }
+    }, 100);
+
+    const timeout = setTimeout(() => {
+      clearInterval(checkRazorpay);
+    }, 10000);
+
+    return () => {
+      clearInterval(checkRazorpay);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  async function handlePayment() {
+    if (!window.Razorpay) {
+      alert("Payment gateway is loading. Please try again in a moment.");
+      return;
+    }
+
+    const res = await fetch("/api/razorpay/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, subtotal })
+    });
+
+    const orderData = await res.json();
+
+    const options = {
+      key: orderData.key,
+      amount: orderData.amount,
+      currency: razorpayConfig.currency,
+      name: razorpayConfig.name,
+      order_id: orderData.razorayOrderId,
+      handler: async function (response: {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+      }) {
+
+        const verifyRes = await fetch("/api/razorpay/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          }),
+        });
+
+        const verifyData = await verifyRes.json();
+
+      }
+    };
+
+    const paymentPopup = new window.Razorpay(options);
+    paymentPopup.open();
+  }
+
+  return (
+    <Button
+      className="w-full mt-6 text-lg py-6"
+      onClick={handlePayment}
+      disabled={!razorpayLoaded}
+    >
+      {razorpayLoaded ? "Proceed to Checkout" : "Loading Payment Gateway..."}
+    </Button>
+  );
+}
