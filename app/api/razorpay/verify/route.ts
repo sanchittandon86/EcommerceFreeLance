@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ success: false });  
         }
         
-        // Success
+        // Success - Update order status
         const { error: updateError } = await supabase
               .from("orders")
               .update({
@@ -57,6 +57,27 @@ export async function POST(req: NextRequest) {
                 success: false,
                 message: 'Failed to update order status'
             }, { status: 500 });
+        }
+
+        // Clear cart after successful payment
+        // Get user_id from the order
+        const { data: orderData } = await supabase
+            .from("orders")
+            .select("user_id")
+            .eq("razorpay_order_id", razorpay_order_id)
+            .single();
+
+        if (orderData?.user_id) {
+            // Delete all cart items for this user
+            const { error: cartError } = await supabase
+                .from("cart")
+                .delete()
+                .eq("user_id", orderData.user_id);
+
+            if (cartError) {
+                console.error("Error clearing cart after payment:", cartError);
+                // Don't fail the payment verification if cart clearing fails
+            }
         }
 
         return NextResponse.json({ success: true });         

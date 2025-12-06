@@ -2,6 +2,8 @@
 
 import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCart } from "@/components/CartContext";
 import { razorpayConfig } from "@/config/config.razorpay"
 
 declare global {
@@ -11,6 +13,8 @@ declare global {
 }
 
 export default function RazorpayButton({ subtotal, userId }: { subtotal: number, userId: string }) {
+  const router = useRouter();
+  const { resetCart } = useCart();
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   useEffect(() => {
@@ -74,6 +78,15 @@ export default function RazorpayButton({ subtotal, userId }: { subtotal: number,
 
         const verifyData = await verifyRes.json();
 
+        // If payment is successful, clear the cart
+        if (verifyData.success) {
+          // Clear cart (CartContext handles both Supabase and localStorage)
+          await resetCart();
+          
+          // Redirect to success page or home
+          router.push("/?payment=success");
+          router.refresh();
+        }
       }
     };
 

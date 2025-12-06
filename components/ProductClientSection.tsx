@@ -34,16 +34,8 @@ export default function ProductClientSection({ product }: { product: any }) {
   }, []);
 
   const handleAddToCart = async () => {
-    // Check authentication before adding to cart
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.user) {
-      // Redirect to login page if not authenticated
-      router.push("/login?redirect=" + encodeURIComponent(window.location.pathname));
-      return;
-    }
-
-    // User is authenticated, add to cart
+    // Add to cart - works for both guest and authenticated users
+    // CartContext handles the storage (localStorage for guests, Supabase for authenticated)
     addToCart({
       id: product.id,
       name: product.name,
