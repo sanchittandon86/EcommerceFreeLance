@@ -1,18 +1,18 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { useCart } from "@/components/CartContext";
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { useCart } from "@/components/CartContext"
 
 export default function Navbar() {
-  const { cart } = useCart();
-  const count = cart.reduce((sum, item) => sum + item.qty, 0);
+  const { cart } = useCart()
+  const count = cart.reduce((sum, item) => sum + item.qty, 0)
 
   return (
-    <nav className="border-b bg-white">
+    <nav className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md">
       <div className="max-w-6xl mx-auto flex justify-between items-center p-4">
         <Link href="/" className="text-2xl font-bold">
-          MyStore
+          NGO STORE
         </Link>
 
         <div className="flex gap-6 items-center">
@@ -35,5 +35,5 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
-  );
+  )
 }

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -35,7 +34,3 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# EcommerceFreeLance
-A flexible service where I help businesses build, optimize, and scale their online stores. This includes store setup, product listing, payment integration, performance improvements, and basic digital marketing support across platforms like Shopify, WooCommerce, and custom web apps.
->>>>>>> a6fecc11e76a03e2b9a17becd74fc3e263c03222
