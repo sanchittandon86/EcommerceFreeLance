@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartContext";
 import { razorpayConfig } from "@/config/config.razorpay"
 import { sendEmail } from "@/utils/sendMail"
-import { sendEmail } from "@/utils/sendMail"
 
 declare global {
   interface Window {
@@ -88,20 +87,8 @@ export default function RazorpayButton({ subtotal, userId }: { subtotal: number,
           router.push("/?payment=success");
           router.refresh();
         }
-        const verifyData = await verifyRes.json(); 
-        const result = verifyData.success ? 'Successful' : 'Failed'
-        const data = {
-          to : 'anmolpatel562@gmail.com',
-          message: `Your payment has ${result} for the order ${orderData.orderRowId} with amount ${subtotal}`,
-          subject: `Payment ${result}`
-        }
         
-        if (verifyData.success) {
-           sendEmail(data);
-           return;
-        } 
-        sendEmail(data);
-        
+        // Send email notification regardless of payment success/failure
         const result = verifyData.success ? 'Successful' : 'Failed'
         const data = {
           to : 'anmolpatel562@gmail.com',

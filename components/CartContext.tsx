@@ -243,7 +243,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
-  function addToCart(item: CartItem) {
+  // Initialize cart and listen for auth changes
+  useEffect(() => {
     let mounted = true;
 
     async function initializeCart() {
@@ -347,10 +348,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Add to cart
   const addToCart = useCallback(async (item: CartItem) => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+    if (isSynced && user) {
+      // Add to Supabase
+      try {
+        const existing = cart.find((p) => p.id === item.id);
+        if (existing) {
+          await supabase
+            .from("cart")
+            .update({ qty: existing.qty + (item.qty || 1) })
+            .eq("user_id", user.id)
+            .eq("product_id", item.id);
+        } else {
+          await supabase.from("cart").insert({
+            user_id: user.id,
+            product_id: item.id,
+            qty: item.qty || 1,
+          });
+        }
+      } catch (err) {
+        console.error("Error adding to Supabase cart:", err);
+      }
+    }
 
-  function addToCart(item: CartItem) {
     setCart((prev) => {
       const existing = prev.find((p) => p.id === item.id);
       if (existing) {
@@ -360,7 +379,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { ...item, qty: item.qty || 1 }];
     });
-  }, []);
+  }, [cart, isSynced, user]);
 
   // Remove from cart
   const removeFromCart = useCallback(async (id: string) => {
