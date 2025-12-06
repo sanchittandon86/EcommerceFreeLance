@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
 export default function CartPage() {
-  const { cart, removeFromCart, addToCart } = useCart();
+  const { cart, removeFromCart, increaseQty, decreaseQty } = useCart();
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -84,14 +84,7 @@ export default function CartPage() {
                           variant="ghost"
                           size="sm"
                           className="h-9 w-9 rounded-none hover:bg-amber-50 hover:text-amber-700"
-                          onClick={() => {
-                            if (item.qty === 1) {
-                              removeFromCart(item.id);
-                            } else {
-                              removeFromCart(item.id);
-                              addToCart({ ...item, qty: item.qty - 1 });
-                            }
-                          }}
+                          onClick={() => decreaseQty(item.id)}
                         >
                           –
                         </Button>
@@ -102,12 +95,7 @@ export default function CartPage() {
                           variant="ghost"
                           size="sm"
                           className="h-9 w-9 rounded-none hover:bg-amber-50 hover:text-amber-700"
-                          onClick={() =>
-                            addToCart({
-                              ...item,
-                              qty: 1,
-                            })
-                          }
+                          onClick={() => increaseQty(item.id)}
                         >
                           +
                         </Button>
