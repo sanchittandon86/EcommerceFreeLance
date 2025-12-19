@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         if (expectedSignature !== razorpay_signature) {
           // Payment Failed  
           const { error } = await supabase
-            .from("orders")
+            .from("payment_transactions")
             .update({ status: razorpayConfig.failedPayment})
             .eq("razorpay_order_id", razorpay_order_id);
           
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         
         // Success - Update order status
         const { error: updateError } = await supabase
-              .from("orders")
+              .from("payment_transactions")
               .update({
                 status: razorpayConfig.paidPayment,
                 payment_id: razorpay_payment_id,
@@ -56,13 +56,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ 
                 success: false,
                 message: 'Failed to update order status'
-            }, { status: 500 });
+            }, { status: 400 });
         }
 
         // Clear cart after successful payment
         // Get user_id from the order
         const { data: orderData } = await supabase
-            .from("orders")
+            .from("payment_transactions")
             .select("user_id")
             .eq("razorpay_order_id", razorpay_order_id)
             .single();
@@ -87,6 +87,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
           success: false,
           message: 'Internal server error'
-      }, { status: 500 });
+      }, { status: 400 });
     }
 }
