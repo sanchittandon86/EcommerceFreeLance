@@ -135,7 +135,7 @@ export default function CartPage() {
             <Separator className="bg-slate-200" />
             {/* Checkout Button */}
             {user ? (
-              <RazorpayButton subtotal={subtotal} userId={user.id} />
+              <RazorpayButton cart={cart} subtotal={subtotal} userId={user.id} />
             ) : (
               <Button 
                 className="w-full text-lg py-6 bg-amber-700 hover:bg-amber-800 text-white transition-all duration-300"
