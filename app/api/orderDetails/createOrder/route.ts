@@ -1,3 +1,4 @@
+import { globalConfig } from "@/lib/globalConfig";
 import { supabaseServer } from "@/lib/supabaseServer"
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -29,15 +30,15 @@ export async function POST(req: NextRequest) {
 
             const { data: OrderRow, error } = await supabase
                 .from("orderDetails")
-                .insert([{ amount: order.amount, quantity: order.quantity, is_active: 1, fk_id_product: order.fk_id_product, fk_id_user: fk_id_user }])
+                .insert([{ amount: order.price, quantity: order.qty, is_active: 1, fk_id_product: order.id, fk_id_user: fk_id_user , order_status: globalConfig.orderStatus.pending}])
                 .select()
                 .single()
 
-            if (error) {
+            if (error || !OrderRow) {
                 return NextResponse.json({
                     success: false,
                     message: "Error while creating the orderDetails!",
-                    error: error
+                    error: error || "No data returned from insert operation"
                 }, { status: 400 });
             }
 
@@ -60,20 +61,20 @@ export async function POST(req: NextRequest) {
 }
 
 function validateOrder(order: any) {
-    if (order.amount === undefined || order.amount <= 0) {
+    if (order.price === undefined || order.price <= 0) {
         return NextResponse.json({
             success: false,
             message: "Amount should be greater than 0.",
         }, { status: 400 });
     }
-    if (order.quantity === undefined || order.quantity <= 0) {
+    if (order.qty === undefined || order.qty <= 0) {
         return NextResponse.json({
             success: false,
             message: "Quantity should be greater than 0.",
         }, { status: 400 });
     }
 
-    if (!order.fk_id_product || order.fk_id_product === undefined) {
+    if (!order.id || order.id === undefined) {
         return NextResponse.json({
             success: false,
             message: "No Product Id found!",
