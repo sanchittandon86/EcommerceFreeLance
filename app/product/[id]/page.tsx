@@ -16,11 +16,12 @@ export default async function ProductPage({
     return <div className="p-6 text-red-600">Invalid product ID.</div>;
   }
 
-  // Fetch product
+  // Fetch product - only active products are accessible to users
   const { data: product, error } = await supabase
     .from("products")
     .select("*")
     .eq("id", id)
+    .eq("is_active", true)
     .single();
 
   if (error || !product) {
@@ -68,11 +69,12 @@ export default async function ProductPage({
     imagesArray = [product.image_url];
   }
 
-  // Fetch related products
+  // Fetch related products - only active products
   const { data: related } = await supabase
     .from("products")
     .select("*")
     .eq("category", product.category)
+    .eq("is_active", true)
     .neq("id", product.id)
     .limit(3);
 

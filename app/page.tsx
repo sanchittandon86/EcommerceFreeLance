@@ -39,37 +39,114 @@ export default function Home() {
       try {
         setIsLoading(true)
         
-        // Add timeout to prevent infinite loading
-        const fetchPromise = supabase.from("products").select("*")
-        const timeoutPromise = new Promise((resolve) => 
-          setTimeout(() => resolve({ data: null, error: { message: "Request timeout" } }), 5000)
-        )
-
-        const result = await Promise.race([fetchPromise, timeoutPromise]) as {
-          data: any[] | null
-          error: any
-        }
+        // First, try to fetch with is_active filter (soft delete support)
+        let result = await supabase
+          .from("products")
+          .select("*")
+          .eq("is_active", true)
 
         if (!mounted) return
 
+        // Check if error is due to missing is_active column
         if (result.error) {
-          console.error("Error fetching products:", result.error)
-          setHasError(true)
-          setProducts([])
+          const errorMessage = result.error.message || ""
+          const errorCode = result.error.code || ""
+          const errorDetails = result.error.details || ""
+          const errorHint = result.error.hint || ""
+          
+          console.error("Error fetching products:", {
+            message: errorMessage,
+            code: errorCode,
+            details: errorDetails,
+            hint: errorHint,
+            fullError: result.error,
+          })
+          
+          // Check if it's a column error (is_active doesn't exist yet)
+          // Error code 42703 = undefined column
+          const isColumnError = 
+            errorCode === "42703" ||
+            (errorMessage && (
+              errorMessage.includes("column") && 
+              (errorMessage.includes("is_active") || errorMessage.includes("does not exist"))
+            )) ||
+            (errorHint && errorHint.includes("is_active"));
+          
+          if (isColumnError) {
+            // Retry without is_active filter (fallback for databases without soft delete)
+            console.warn("is_active column not found, fetching all products without filter")
+            const fallbackResult = await supabase
+              .from("products")
+              .select("*")
+            
+            if (!mounted) return
+            
+            if (fallbackResult.error) {
+              console.error("Fallback query also failed:", fallbackResult.error)
+              // Check if fallback error is a config error
+              const fallbackErrorMsg = fallbackResult.error.message || ""
+              const fallbackErrorCode = fallbackResult.error.code || ""
+              const isConfigError = 
+                fallbackErrorMsg.includes("Invalid API key") ||
+                fallbackErrorMsg.includes("JWT") ||
+                fallbackErrorCode === "PGRST116" ||
+                !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+                !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+              
+              setHasError(isConfigError)
+              setProducts([])
+            } else {
+              const fallbackData = fallbackResult.data || []
+              console.log("Fallback products fetched:", fallbackData.length, "products")
+              if (mounted) {
+                setProducts(fallbackData)
+                setHasError(false)
+                requestAnimationFrame(() => {
+                  if (mounted) {
+                    setIsLoading(false)
+                  }
+                })
+              }
+            }
+          } else {
+            // Check if it's a configuration error
+            const isConfigError = 
+              errorMessage.includes("Invalid API key") ||
+              errorMessage.includes("JWT") ||
+              errorMessage.includes("Failed to fetch") ||
+              errorCode === "PGRST116" ||
+              !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+              !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            
+            setHasError(isConfigError)
+            setProducts([])
+            setIsLoading(false) // Clear loading on error
+          }
         } else {
-          setProducts(result.data || [])
-          setHasError(false)
+          // Ensure we have valid data before setting state
+          const productsData = result.data || []
+          console.log("Products fetched successfully:", productsData.length, "products")
+          if (mounted) {
+            // Set products first, then clear loading
+            // React will batch these updates, but setting products first ensures
+            // the component has the data when loading is cleared
+            setProducts(productsData)
+            setHasError(false)
+            // Use requestAnimationFrame to ensure products state update is processed
+            // before clearing loading - this prevents the "No products" flash
+            requestAnimationFrame(() => {
+              if (mounted) {
+                setIsLoading(false)
+              }
+            })
+          }
         }
       } catch (err) {
         console.error("Error connecting to Supabase:", err)
         if (mounted) {
           setHasError(true)
           setProducts([])
-        }
-      } finally {
-        // CRITICAL: Always clear loading state
-        if (mounted) {
-          setIsLoading(false)
+          setIsLoading(false) // Clear loading on error
         }
       }
     }
@@ -287,13 +364,26 @@ export default function Home() {
                 </div>
               )}
             </div>
+          ) : products.length === 0 && !isLoading ? (
+            // Show empty state only if we've finished loading and have no products
+            <div className="text-center py-16">
+              <p className="text-xl text-slate-600 mb-4">No products available at the moment</p>
+              <p className="text-slate-500">Please check back later or contact support if this persists.</p>
+            </div>
           ) : (
             // Show products by category when no filters are active
-            categories.map((cat) => (
-              <div key={cat} className="mb-16 pb-16 border-b border-slate-200 last:border-0">
-                <CategorySection title={cat} products={products.filter((p: any) => p.category === cat) || []} />
-              </div>
-            ))
+            categories.map((cat) => {
+              const categoryProducts = products.filter((p: any) => p.category === cat) || []
+              return (
+                <div key={cat} className="mb-16 pb-16 border-b border-slate-200 last:border-0">
+                  <CategorySection 
+                    title={cat} 
+                    products={categoryProducts}
+                    isLoading={isLoading}
+                  />
+                </div>
+              )
+            })
           )}
         </main>
       )}

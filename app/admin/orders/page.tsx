@@ -2,14 +2,8 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabaseServer";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
+import AdminOrdersClient from "./AdminOrdersClient";
 
 export default async function AdminOrdersPage() {
   const supabase = await supabaseServer();
@@ -29,7 +23,7 @@ export default async function AdminOrdersPage() {
   if (!profile || profile.role !== "admin") redirect("/not-authorized");
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-16">
+    <main className="max-w-7xl mx-auto px-6 py-16">
       <div className="mb-8">
         <Button asChild variant="outline" className="mb-4">
           <Link href="/admin">
@@ -39,36 +33,11 @@ export default async function AdminOrdersPage() {
         </Button>
         <h1 className="text-4xl font-bold text-slate-900">Manage Orders</h1>
         <p className="text-slate-600 mt-2">
-          View and manage customer orders
+          View and manage customer orders and payments
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Orders</CardTitle>
-          <CardDescription>
-            Customer order management
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12">
-            <p className="text-gray-600 mb-4">
-              Order management interface coming soon
-            </p>
-            <p className="text-sm text-gray-500">
-              This page will allow you to:
-            </p>
-            <ul className="text-sm text-gray-500 mt-2 space-y-1 list-disc list-inside">
-              <li>View all orders</li>
-              <li>Filter orders by status</li>
-              <li>Update order status</li>
-              <li>View order details</li>
-              <li>Process refunds</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      <AdminOrdersClient />
     </main>
   );
 }
-

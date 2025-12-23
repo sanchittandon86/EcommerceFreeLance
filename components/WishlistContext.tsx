@@ -103,11 +103,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (wishlistData && wishlistData.length > 0) {
-          // Fetch product details for wishlist items
+          // Fetch product details for wishlist items - only active products
           const productIds = wishlistData.map((item) => item.product_id);
           const { data: products, error: productsError } = await supabase
             .from("products")
             .select("id, name, price, image_url")
+            .eq("is_active", true)
             .in("id", productIds);
 
           if (!mounted) return;

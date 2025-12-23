@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Package, ShoppingBag, Settings } from "lucide-react";
+import { Package, ShoppingBag, BarChart3 } from "lucide-react";
 
 export default async function AdminPage() {
   const supabase = await supabaseServer();
@@ -37,7 +37,24 @@ export default async function AdminPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-6 h-6 text-amber-700" />
+              <CardTitle>Analytics</CardTitle>
+            </div>
+            <CardDescription>
+              View business metrics and insights
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/admin/dashboard">View Dashboard</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <div className="flex items-center gap-2 mb-2">
@@ -68,23 +85,6 @@ export default async function AdminPage() {
           <CardContent>
             <Button asChild className="w-full">
               <Link href="/admin/orders">View Orders</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <Settings className="w-6 h-6 text-amber-700" />
-              <CardTitle>Settings</CardTitle>
-            </div>
-            <CardDescription>
-              Configure store settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full" disabled>
-              Coming Soon
             </Button>
           </CardContent>
         </Card>
