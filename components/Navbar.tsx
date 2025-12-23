@@ -39,39 +39,70 @@ export default function Navbar() {
   const isWishlistPage = pathname === "/wishlist"
 
   useEffect(() => {
-    // Get initial session and profile
+    let mounted = true
+    let timeoutId: NodeJS.Timeout | null = null
+
+    // Get initial auth state - use getUser() for more reliable validation
     async function loadUserData() {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        // Fetch user profile to check role
+      try {
+        // Use getUser() instead of getSession() - validates session server-side
+        const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser()
+        
+        if (!mounted) return
+
+        // Set user immediately - don't wait for profile
+        setUser(currentUser ?? null)
+        
+        // CRITICAL: Clear loading state immediately after auth resolution
+        // Profile fetch will happen asynchronously and won't block UI
+        setLoading(false)
+
+        // Fetch profile asynchronously - don't block UI rendering
+        if (currentUser) {
+          // Use void to explicitly mark as fire-and-forget
+          void loadUserProfile(currentUser.id, currentUser.email)
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error)
+        // Ensure loading is cleared even on error
+        if (mounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    // Load profile separately - non-blocking
+    async function loadUserProfile(userId: string, userEmail?: string) {
+      try {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("role")
-          .eq("id", session.user.id)
+          .eq("id", userId)
           .maybeSingle()
-        
+
+        if (!mounted) return
+
         if (profileError) {
           console.error("Error fetching profile:", profileError)
         } else if (profileData) {
           setProfile(profileData as UserProfile)
         } else {
-          // Profile doesn't exist, try to create it with default role
-          // Use upsert to handle race conditions where profile might be created by trigger
+          // Profile doesn't exist, try to create it (async, non-blocking)
           const { data: newProfile, error: createError } = await supabase
             .from("profiles")
             .upsert(
               { 
-                id: session.user.id, 
-                email: session.user.email || null, 
+                id: userId, 
+                email: userEmail || null, 
                 role: "user" 
               },
               { onConflict: "id" }
             )
             .select("role")
             .single()
-          
+
+          if (!mounted) return
+
           if (createError) {
             // Check if it's a duplicate key error (profile was created by trigger)
             if (createError.code === "23505" || createError.message?.includes("duplicate")) {
@@ -79,123 +110,80 @@ export default function Navbar() {
               const { data: retryProfile } = await supabase
                 .from("profiles")
                 .select("role")
-                .eq("id", session.user.id)
+                .eq("id", userId)
                 .maybeSingle()
-              
-              if (retryProfile) {
+
+              if (mounted && retryProfile) {
                 setProfile(retryProfile as UserProfile)
               }
             } else {
-              // Only log non-duplicate errors
               console.error("Error creating profile:", createError.code, createError.message)
             }
           } else if (newProfile) {
             setProfile(newProfile as UserProfile)
           }
         }
+      } catch (error) {
+        // Silently fail - profile is optional, don't block UI
+        console.error("Profile load error:", error)
       }
-      
-      setLoading(false)
     }
 
     loadUserData()
 
+    // Hard fallback timeout - ensures loading is ALWAYS cleared
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        setLoading(false)
+      }
+    }, 3000) // Max 3 seconds loading
+
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+
       // Skip all processing if we're logging out
       if (logoutRef.current) {
         return
       }
-      
+
       // Handle SIGNED_OUT event explicitly
       if (event === 'SIGNED_OUT' || !session) {
         setUser(null)
         setProfile(null)
+        setLoading(false) // Ensure loading is cleared
         // Don't refresh during logout to avoid race conditions
         if (event !== 'SIGNED_OUT' && !logoutRef.current) {
           router.refresh()
         }
         return
       }
-      
+
       // Only process if we have a user session and not logging out
       if (session?.user && !logoutRef.current) {
+        // Update user immediately - don't wait for profile
         setUser(session.user)
-        
-        // Fetch user profile to check role (with timeout to prevent hanging)
-        try {
-          const profilePromise = supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .maybeSingle()
-          
-          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 2000))
-          
-          const result = await Promise.race([profilePromise, timeoutPromise])
-          
-          if (result && typeof result === 'object' && 'data' in result) {
-            const { data: profileData, error: profileError } = result as { data: any, error: any }
-            
-            if (profileError) {
-              console.error("Error fetching profile:", profileError)
-            } else if (profileData) {
-              setProfile(profileData as UserProfile)
-            } else if (!logoutRef.current) {
-              // Profile doesn't exist, try to create it with default role
-              // Use upsert to handle race conditions where profile might be created by trigger
-              const { data: newProfile, error: createError } = await supabase
-                .from("profiles")
-                .upsert(
-                  { 
-                    id: session.user.id, 
-                    email: session.user.email || null, 
-                    role: "user" 
-                  },
-                  { onConflict: "id" }
-                )
-                .select("role")
-                .single()
-              
-              if (createError) {
-                // Check if it's a duplicate key error (profile was created by trigger)
-                if (createError.code === "23505" || createError.message?.includes("duplicate")) {
-                  // Profile was created by trigger, fetch it again
-                  const { data: retryProfile } = await supabase
-                    .from("profiles")
-                    .select("role")
-                    .eq("id", session.user.id)
-                    .maybeSingle()
-                  
-                  if (retryProfile && !logoutRef.current) {
-                    setProfile(retryProfile as UserProfile)
-                  }
-                } else {
-                  // Only log non-duplicate errors
-                  console.error("Error creating profile:", createError.code, createError.message)
-                }
-              } else if (newProfile && !logoutRef.current) {
-                setProfile(newProfile as UserProfile)
-              }
-            }
-          }
-        } catch (err) {
-          // Silently handle errors during logout
-          if (!logoutRef.current) {
-            console.error("Error in auth state change:", err)
-          }
-        }
+        setLoading(false) // Clear loading immediately
+
+        // Fetch profile asynchronously - non-blocking
+        void loadUserProfile(session.user.id, session.user.email)
       }
-      
+
       // Only refresh if not logging out
       if (!logoutRef.current) {
         router.refresh()
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      subscription.unsubscribe()
+    }
   }, [router])
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)

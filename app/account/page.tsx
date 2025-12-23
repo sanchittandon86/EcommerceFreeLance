@@ -9,6 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default async function AccountPage() {
   const supabase = await supabaseServer();
@@ -59,16 +61,20 @@ export default async function AccountPage() {
           </div>
           <Separator />
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Coming Soon</h3>
+            <h3 className="text-lg font-semibold">Quick Actions</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="p-4 border rounded-lg bg-gray-50">
                 <h4 className="font-medium mb-1">Saved Addresses</h4>
                 <p className="text-sm text-gray-600">Manage your delivery addresses</p>
               </div>
-              <div className="p-4 border rounded-lg bg-gray-50">
-                <h4 className="font-medium mb-1">Order History</h4>
-                <p className="text-sm text-gray-600">View your past orders</p>
-              </div>
+              <Button asChild variant="outline" className="justify-start h-auto p-4">
+                <Link href="/account/orderhistory" className="text-left">
+                  <div>
+                    <h4 className="font-medium mb-1">Order History</h4>
+                    <p className="text-sm text-gray-600">View your past orders</p>
+                  </div>
+                </Link>
+              </Button>
             </div>
           </div>
           <Separator />

@@ -96,22 +96,24 @@ export default function RazorpayButton({
 
         const verifyData = await verifyRes.json();
 
-        if (verifyData.success) {
-          await resetCart();
-
-          router.push("/?payment=success");
-          router.refresh();
-        }
-
         const orderIds = createdOrdersResponse.createdOrders.map((item: any) => item.id);
 
         if (verifyData.success) {
+          // Update order status to completed
           await fetch('/api/orderDetails/updateOrder',{
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderIds, isSuccess: true }),
           }).then(res => res.json());
+
+          // Reset cart after successful payment
+          await resetCart();
+
+          // Redirect to order history page
+          router.push("/account/orderhistory");
+          router.refresh();
         } else {
+          // Update order status to failed
           await fetch('/api/orderDetails/updateOrder',{
             method: "POST",
             headers: { "Content-Type": "application/json" },
