@@ -32,26 +32,63 @@ export default function Home() {
   }, [searchParams, router])
 
   useEffect(() => {
+    let mounted = true
+    let timeoutId: NodeJS.Timeout | null = null
+
     const fetchProducts = async () => {
       try {
         setIsLoading(true)
-        const { data, error } = await supabase.from("products").select("*")
+        
+        // Add timeout to prevent infinite loading
+        const fetchPromise = supabase.from("products").select("*")
+        const timeoutPromise = new Promise((resolve) => 
+          setTimeout(() => resolve({ data: null, error: { message: "Request timeout" } }), 5000)
+        )
 
-        if (error) {
-          console.error("Error fetching products:", error)
+        const result = await Promise.race([fetchPromise, timeoutPromise]) as {
+          data: any[] | null
+          error: any
+        }
+
+        if (!mounted) return
+
+        if (result.error) {
+          console.error("Error fetching products:", result.error)
           setHasError(true)
+          setProducts([])
         } else {
-          setProducts(data || [])
+          setProducts(result.data || [])
+          setHasError(false)
         }
       } catch (err) {
         console.error("Error connecting to Supabase:", err)
-        setHasError(true)
+        if (mounted) {
+          setHasError(true)
+          setProducts([])
+        }
       } finally {
-        setIsLoading(false)
+        // CRITICAL: Always clear loading state
+        if (mounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchProducts()
+
+    // Hard fallback timeout - ensures loading is ALWAYS cleared
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        setIsLoading(false)
+      }
+    }, 6000) // Max 6 seconds loading (products might take longer than auth)
+
+    return () => {
+      mounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
   }, [])
 
   const categories = ["Bags", "BedSheet", "PillowCover", "Blankets"]
