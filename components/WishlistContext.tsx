@@ -29,23 +29,45 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
   // Get user on mount and listen for auth changes
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+    let mounted = true;
+
+    // Get initial user - use getUser() for more reliable validation
+    async function loadUser() {
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (mounted) {
+          setUser(currentUser ?? null);
+        }
+      } catch (error) {
+        console.error("Error loading user:", error);
+        if (mounted) {
+          setUser(null);
+        }
+      }
+    }
+
+    loadUser();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (mounted) {
+        setUser(session?.user ?? null);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Load wishlist from Supabase when user changes
   useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     async function loadWishlist() {
       try {
         setIsLoading(true);
@@ -53,12 +75,14 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         // If no user, clear wishlist (or keep guest wishlist in localStorage)
         if (!user) {
           const stored = localStorage.getItem("wishlist");
-          if (stored) {
-            setWishlist(JSON.parse(stored));
-          } else {
-            setWishlist([]);
+          if (mounted) {
+            if (stored) {
+              setWishlist(JSON.parse(stored));
+            } else {
+              setWishlist([]);
+            }
+            setIsLoading(false);
           }
-          setIsLoading(false);
           return;
         }
 
@@ -69,6 +93,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           .from("wishlist")
           .select("product_id")
           .eq("user_id", userId);
+
+        if (!mounted) return;
 
         if (error) {
           console.error("Error loading wishlist from Supabase:", error);
@@ -83,6 +109,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
             .from("products")
             .select("id, name, price, image_url")
             .in("id", productIds);
+
+          if (!mounted) return;
 
           if (productsError) {
             console.error("Error fetching wishlist products:", productsError);
@@ -105,13 +133,32 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error("Error loading wishlist:", err);
-        setWishlist([]);
+        if (mounted) {
+          setWishlist([]);
+        }
       } finally {
-        setIsLoading(false);
+        // CRITICAL: Always clear loading state
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     loadWishlist();
+
+    // Hard fallback timeout - ensures loading is ALWAYS cleared
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        setIsLoading(false);
+      }
+    }, 3000); // Max 3 seconds loading
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [user]);
 
   // Save to localStorage whenever wishlist changes
